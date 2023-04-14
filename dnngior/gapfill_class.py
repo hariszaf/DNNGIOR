@@ -500,8 +500,11 @@ class Gapfill:
 
         counter = 0
         for var in gu_model.getVars():
+            print(var)
             if var.X != 0:
                 counter += 1 
+                if var.VarName not in N:
+                print(">>>", var)
 
         print("# of non-zero vars: ", str(counter)) ; sys.exit(0)
 
