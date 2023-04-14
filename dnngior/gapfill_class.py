@@ -504,7 +504,7 @@ class Gapfill:
             if var.X != 0:
                 counter += 1 
                 if var.VarName not in N:
-                print(">>>", var)
+                    print(">>>", var)
 
         print("# of non-zero vars: ", str(counter)) ; sys.exit(0)
 
