@@ -14,6 +14,12 @@ if not ff.is_file():
     file = tarfile.open(os.path.join(BiochemRoot, 'reactions.tsv.tar.gz'))
     file.extractall(BiochemRoot)
 
+bigg_rxns_file = "bigg_reactions.tsv"
+ff = Path(os.path.join(BiochemRoot, rxns_file))
+if not ff.is_file():
+    file = tarfile.open(os.path.join(BiochemRoot, 'bigg_reactions.tsv.tar.gz'))
+    file.extractall(BiochemRoot)
+
 cpds_file = "compounds.tsv"
 ff = Path(os.path.join(BiochemRoot, cpds_file))
 if not ff.is_file():

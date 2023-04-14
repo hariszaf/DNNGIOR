@@ -29,7 +29,7 @@ class Gapfill:
         self.trainedNNPath    = trainedNNPath
         self.dbType           = dbType
         self.draftModel       = cobra.io.read_sbml_model(draftModel)
-        self.draft_reaction   = Reaction( model = draftModel )
+        self.draft_reaction   = Reaction( model = draftModel, dbType = self.dbType )
         self.medium           = medium
         self.result_selection = "min_reactions"
 
@@ -37,25 +37,32 @@ class Gapfill:
             self.path_to_biochem  = MODELSEED_REACTIONS
             if trainedNNPath is None: 
                 self.trainedNNPath = TRAINED_NN_MSEED
+
+            # Build a Reaction object for the exchange reactions; 
+            # if you have a defined medium, set the fixed_bounds argument accordingly
+            self.exchange_reacs         = Reaction(model = os.path.join(MODELS_PATH, 'exchangeReactions.sbml'), fixed_bounds = self.medium)
+            self.db_reactions           = Reaction(biochem_input = self.path_to_biochem)
+            self.db_reactions.reactions = self.db_reactions.add_dict(self.exchange_reacs.reactions, self.db_reactions.reactions)
+
+
         elif dbType == "BiGG":
+
+            self.path_to_biochem = BIGG_REACTIONS
             if trainedNNPath is None:
                 self.trainedNNPath = TRAINED_NN_BIGG
-            return "dbType %s is currently not supported" % dbType
+            self.db_reactions           = Reaction(biochem_input = self.path_to_biochem, dbType = self.dbType)
+
         else:
             return "dbType %s is not supported" % dbType
 
-        # Build a Reaction object for the exchange reactions; 
-        # if you have a defined medium, set the fixed_bounds argument accordingly
-        self.exchange_reacs         = Reaction(model = os.path.join(MODELS_PATH, 'exchangeReactions.sbml'), fixed_bounds = self.medium)
-        self.db_reactions           = Reaction(biochem_input = self.path_to_biochem)
-        self.db_reactions.reactions = self.db_reactions.add_dict(self.exchange_reacs.reactions, self.db_reactions.reactions)
 
         # Merge reactions from db with those of the draft model
-        self.all_reactions           = Reaction(fixed_bounds = self.medium) 
+        self.all_reactions           = Reaction(fixed_bounds = self.medium, dbType = self.dbType) 
         self.all_reactions.reactions = self.all_reactions.add_dict(self.draft_reaction.reactions, self.db_reactions.reactions)
 
         self.draft_reaction_ids = set(self.draft_reaction.reactions)
         
+
         if self.medium is not None:
             #####remove the predefined exchange reactions#####
             for react in self.exchange_reacs.reactions:
@@ -108,12 +115,17 @@ class Gapfill:
 
 
             # Refine model based on the gapfill findings
-            if self.medium is not None:
-                self.gapfilledModel = build_model.refine_model(model_NN_gf, 
-                                                               self.draftModel, 
-                                                               unscalled = list(self.medium.keys()))
+            if self.dbType == 'BiGG':
+                self.gapfilledModel = self.model_NN_gf
+
             else:
-                self.gapfilledModel = build_model.refine_model(model_NN_gf, self.draftModel)
+
+                if self.medium is not None:
+                    self.gapfilledModel = build_model.refine_model(model_NN_gf, 
+                                                                self.draftModel, 
+                                                                unscalled = list(self.medium.keys()))
+                else:
+                    self.gapfilledModel = build_model.refine_model(model_NN_gf, self.draftModel)
 
     def build_gurobi_model(self, 
                            reaction_dict, 
@@ -279,14 +291,21 @@ class Gapfill:
         Return a dict mapping the metab_id (str) : object.
         '''
         cobra_metabs = {}
-        for metab in metab_dict:
-            cobra_metabs[metab] = cobra.Metabolite(metab)
-            if '_c0' in metab:
-                cobra_metabs[metab].compartment = 'c0'
-            
-            elif '_e0' in metab:
-                cobra_metabs[metab].compartment = 'e0'
+        if self.dbType == 'ModelSEED':
+            for metab in metab_dict:
+                cobra_metabs[metab] = cobra.Metabolite(metab)
+                if '_c0' in metab:
+                    cobra_metabs[metab].compartment = 'c0'
                 
+                elif '_e0' in metab:
+                    cobra_metabs[metab].compartment = 'e0'
+        elif self.dbType == "BiGG":
+            for metab in metab_dict:
+                cobra_metabs[metab] = cobra.Metabolite(metab)
+                if metab[-2] == '_':
+                    print(">>", metab)
+                    cobra_metabs[metab].compartment = metab[-1]
+
         return cobra_metabs
     
     def make_cobra_reaction(self, 
@@ -367,7 +386,7 @@ class Gapfill:
         
         all_reacs = deepcopy(all_reactions.reactions)
         
-        all_reacs_obj = Reaction()
+        all_reacs_obj = Reaction(dbType = self.dbType)
         all_reacs_obj.reactions = all_reacs.copy()
         cand_reacs = candidate_reactions.copy()
         
@@ -382,7 +401,7 @@ class Gapfill:
                 del cand_reacs[reaction]    
         
         # Split bidirectional reactions into a forward and reverse reaction.
-        all_reactions_split = Reaction()
+        all_reactions_split = Reaction(dbType = self.dbType)
         
         all_reactions_split.reactions = all_reacs_obj.split_all_bidirectional_reactions(all_reacs_obj.reactions)
         
@@ -390,13 +409,13 @@ class Gapfill:
         draft_reaction_ids_split = set()
         
         for reaction in all_reactions_split.reactions:
-            forward_version = reaction.replace('_r', '')
+            forward_version = reaction.replace('_rv', '')
             if forward_version in draft_reaction_ids:
                 draft_reaction_ids_split.add(reaction)
             
             # If forward version of a reverse reaction is in candidate_reactions.
             else:
-                if '_r' in reaction:
+                if '_rv' in reaction:
                     # Give reverse reaction same cost as forward version.
                     cand_reacs[reaction] = cand_reacs[forward_version] 
 
@@ -415,7 +434,7 @@ class Gapfill:
             return None
 
 
-        gapfill_result = set([r.replace('_r', '') for r in split_gapfill_result])
+        gapfill_result = set([r.replace('_rv', '') for r in split_gapfill_result])
         
         self.added_reactions = list(gapfill_result) #All reactions that are added to the model during gapfilling.
         
@@ -467,16 +486,31 @@ class Gapfill:
         
         # Format reactions for gurobi model
         reaction_dict = all_reactions_split.get_gurobi_reaction_dict(all_reactions_split.reactions.keys())
-        
+
         # Format metabolites for gurobi_model
         metabolite_dict = all_reactions_split.get_gurobi_metabolite_dict(all_reactions_split.reactions.keys())
-        
+
         # Check if the model is gapfillable :)
         gu_model = self.build_gurobi_model(reaction_dict, metabolite_dict, B, N, M, delta = 1)
         
-        
+        # For the modelseed case:
+        # <gurobi.Model Continuous instance mipl: 22943 constrs, 76190 vars, Parameter changes: Username=(user-defined), OutputFlag=0>
+        # For the BiGG caseL
+        # <gurobi.Model Continuous instance mipl: 14290 constrs, 43044 vars, Parameter changes: Username=(user-defined), OutputFlag=0>
+
+        counter = 0
+        for var in gu_model.getVars():
+            if var.X != 0:
+                counter += 1 
+
+        print("# of non-zero vars: ", str(counter)) ; sys.exit(0)
+
         R.append([var.VarName for var in gu_model.getVars() if (var.VarName not in N) and (var.X != 0)])
     
+        print("\n\n\n\n<<<<<<<<<<<<<<")
+        print("later R")
+        print(R) ; sys.exit(0)
+
         max_obj = gu_model.getVarByName(B).X
         print ('Flux through biomass reaction is {:.8f}'.format(max_obj))
 
@@ -498,7 +532,6 @@ class Gapfill:
             gu_model = self.build_gurobi_model(reaction_dict, metabolite_dict, B, N, M, delta)
             
             if np.round(gu_model.getVarByName(B).X,6) > 0:
-                # print ('Flux through biomass reaction is {:.8f}'.format(gu_model.getVarByName(B).X))
                 
                 R.append([var.VarName for var in gu_model.getVars() if (var.VarName not in N) and (var.X != 0)])
                 

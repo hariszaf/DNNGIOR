@@ -13,7 +13,7 @@ import ast
 
 class Reaction:
     
-    def __init__(self, model_folder=None, model_list=None, model=None, biochem_input=None, fixed_bounds=None):
+    def __init__(self, dbType="ModelSEED", model_folder=None, model_list=None, model=None, biochem_input=None, fixed_bounds=None):
         '''
         General class to handle reaction sets from metabolic models.
         
@@ -48,6 +48,8 @@ class Reaction:
 
         '''
         
+        self.dbType = dbType
+
         self.fixed_bounds = fixed_bounds
         
         self.model_folder = model_folder
@@ -107,56 +109,82 @@ class Reaction:
         
         react_d = self.read_biochemistry_table(biochem_input)
         reactions = {}
-        for reaction in react_d:
-            
-            #I am assuming bacterial models (c0 and e0 compartments) and modelSEED identifiers
-            #as 'rxn00001'
-            direction = react_d[reaction][1]
-            
-            
-            reaction_id = reaction[0:8] + "_c0" 
-            
-            metabolites = react_d[reaction][0].split(';')
-            
-            
-            #boundaries set to 1 and -1 make gapfilling cleaner,
-           
-            #the external media should also be in this range.
-            
-            if direction == '=':
-                reactions[reaction_id] = {'lower_bound':-1.0, 'upper_bound':1.0}
+
+
+        if self.dbType == "ModelSEED":
+
+            for reaction in react_d:
                 
-            else:
-                reactions[reaction_id] = {'lower_bound':0.0, 'upper_bound':1.0}
+                #I am assuming bacterial models (c0 and e0 compartments) and modelSEED identifiers
+                #as 'rxn00001'
+                direction = react_d[reaction][1]
                 
-            
-            mets={}
-            
-            for i in metabolites:
                 
-                    metabolite = i.split(':')
+                reaction_id = reaction[0:8] + "_c0" 
+                
+                metabolites = react_d[reaction][0].split(';')
+                
+                
+                #boundaries set to 1 and -1 make gapfilling cleaner,
+            
+                #the external media should also be in this range.
+                
+                if direction == '=':
+                    reactions[reaction_id] = {'lower_bound':-1.0, 'upper_bound':1.0}
                     
-                    if len(metabolite) > 1: #Check if metabolite is specified.
-                        stoc = metabolite[0]
-                        cpd = metabolite[1]
-                        loc = metabolite[2]
-                        if int(loc) == 0:
-                            name = cpd + '_c0'
-                            
-                        elif int(loc) == 1:
-                            name = cpd + '_e0'
+                else:
+                    reactions[reaction_id] = {'lower_bound':0.0, 'upper_bound':1.0}
+                    
+                
+                mets={}
+                
+                for i in metabolites:
+                    
+                        metabolite = i.split(':')
                         
-                        else: #if the loc of the metabolite is not specified, define it as cellular
-                            name = cpd + '_c0'
-                            
-                        if direction == '<':
-                            mets[name] = -float(stoc) #Flip the sign of the stoichiometry of reversed reactions.
+                        if len(metabolite) > 1: #Check if metabolite is specified.
+                            stoc = metabolite[0]
+                            cpd = metabolite[1]
+                            loc = metabolite[2]
+                            if int(loc) == 0:
+                                name = cpd + '_c0'
                                 
+                            elif int(loc) == 1:
+                                name = cpd + '_e0'
+                            
+                            else: #if the loc of the metabolite is not specified, define it as cellular
+                                name = cpd + '_c0'
+                                
+                            if direction == '<':
+                                mets[name] = -float(stoc) #Flip the sign of the stoichiometry of reversed reactions.
+                                    
+                            else:
+                                mets[name] = float(stoc)
+                reactions[reaction_id]['metabolites'] = {i:mets[i] for i in mets}
+        
+        elif self.dbType == "BiGG":
+
+            for reaction in react_d:
+
+                reactions[reaction] = {'lower_bound':-1.0, 'upper_bound':1.0}
+                reaction_split = react_d[reaction].split(' ')
+                mets = {}
+                side = 1
+                for i in reaction_split:
+                    if(len(i) > 1):
+                        stoc = 1.0
+                        if not('_' in i):
+                            if i[0].isdigit():
+                                stoc = float(i) * side
+                            else:
+                                if i == '<->':
+                                    side = -1
                         else:
-                            mets[name] = float(stoc)
-            reactions[reaction_id]['metabolites'] = {i:mets[i] for i in mets}
-                    
-               
+                            mets[i] = stoc
+
+                reactions[reaction]['metabolites'] = {i:mets[i] for i in mets}
+                metabolites = react_d[reaction][0].split(';')
+
         return reactions
     
     def add_dict(self, dict_x, dict_y):
@@ -302,7 +330,7 @@ class Reaction:
             r1, r2 = self.split_bidirectional_reaction(reaction_dictionary[reaction])
             _d[reaction] = r1
             if r2:
-                r2_name = reaction + '_r'
+                r2_name = reaction + '_rv'
                 _d[r2_name] = r2
                     
         return _d
@@ -314,10 +342,21 @@ class Reaction:
         """
         biochem = {}
         
-        with open(filePath, 'r') as f:
-            f.readline() #Skip the header
-            for line in f:
-                splitted_line = line.strip().split("\t")
-                biochem[splitted_line[0]] = [splitted_line[4], splitted_line[9], splitted_line[6]]
-            
+        if self.dbType == "ModelSEED":
+
+            with open(filePath, 'r') as f:
+                f.readline() #Skip the header
+                for line in f:
+                    splitted_line = line.strip().split("\t")
+                    biochem[splitted_line[0]] = [splitted_line[4], splitted_line[9], splitted_line[6]]
+
+        elif self.dbType == "BiGG":
+
+            with open(filePath, 'r') as f:
+                f.readline() #Skip the header
+                for line in f:
+                    splitted_line = line.strip().split("\t")
+                    biochem[splitted_line[0]] = splitted_line[2]
+
+
         return biochem

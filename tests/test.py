@@ -24,40 +24,49 @@ import os
 import gurobipy as gp
 from gurobipy import GRB
 
-
-# Example 1. Gapfilling a model using a complete medium
-# -----------------------------------------------------
-
 base_path  = "/".join(os.path.abspath(__file__).split("/")[:-2])
+
+# Example 1. Gapfilling a ModelSEED model using a complete medium
+# ---------------------------------------------------------------
+
 draftModel = os.path.join(base_path, "docs/models/bh_ungapfilled_model.sbml")
 
 gapfill_compl      = dnngior.Gapfill(draftModel, medium = None, objectiveName = 'bio1')
-gf_model_compl_med = gapfill_compl.gapfilledModel.copy()
+# gf_model_compl_med = gapfill_compl.gapfilledModel.copy()
 
-print("NN gapfilling added {} new readctions".format(len(gapfill_compl.added_reactions)))
-print("The NN gapfilled model, comes with {} reactions and {} metabolites".format(len(gf_model_compl_med.metabolites), len(gf_model_compl_med.reactions)))
+# print("NN gapfilling added {} new readctions".format(len(gapfill_compl.added_reactions)))
+# print("The NN gapfilled model, comes with {} reactions and {} metabolites".format(len(gf_model_compl_med.metabolites), len(gf_model_compl_med.reactions)))
 
-for reaction in gapfill_compl.added_reactions:
-    print(reaction)
+# for reaction in gapfill_compl.added_reactions:
+#     print(reaction)
 
-# Example 2. Gapfilling a model using a defined medium
-# ------------------------------------------------------
+# # Example 2. Gapfilling a ModelSEED model using a defined medium
+# # --------------------------------------------------------------
 
-media_file = os.path.join(base_path, 'docs/biochemistry/Nitrogen-Nitrite_media.tsv')
+# media_file = os.path.join(base_path, 'docs/biochemistry/Nitrogen-Nitrite_media.tsv')
 
-Nit_media = {}
-with open(media_file) as f:
-    f.readline()
-    for line in f:
-        a = line.strip().split('\t')
-        Nit_media['EX_' + a[0] + '_e0'] = {'lower_bound':-1, 'upper_bound':1, 'metabolites':{a[0]+'_e0':-1.0}}
+# Nit_media = {}
+# with open(media_file) as f:
+#     f.readline()
+#     for line in f:
+#         a = line.strip().split('\t')
+#         Nit_media['EX_' + a[0] + '_e0'] = {'lower_bound':-1, 'upper_bound':1, 'metabolites':{a[0]+'_e0':-1.0}}
 
-gapfill_nitr     = dnngior.Gapfill(draftModel, medium = Nit_media, objectiveName = 'bio1')
-gf_model_Nit_med = gapfill_nitr.gapfilledModel.copy()
+# gapfill_nitr     = dnngior.Gapfill(draftModel, medium = Nit_media, objectiveName = 'bio1')
+# gf_model_Nit_med = gapfill_nitr.gapfilledModel.copy()
 
-print("NN gapfilling added {} new readctions".format(len(gapfill_nitr.added_reactions)))
-print("The NN gapfilled model, comes with {} reactions and {} metabolites".format(len(gf_model_Nit_med.metabolites), len(gf_model_Nit_med.reactions)))
+# print("NN gapfilling added {} new readctions".format(len(gapfill_nitr.added_reactions)))
+# print("The NN gapfilled model, comes with {} reactions and {} metabolites".format(len(gf_model_Nit_med.metabolites), len(gf_model_Nit_med.reactions)))
 
 
-for reaction in gapfill_nitr.added_reactions:
-    print(reaction)
+# for reaction in gapfill_nitr.added_reactions:
+#     print(reaction)
+
+
+# # Example 3. Gapfilling a BiGG model using a complete medium
+# # -----------------------------------------------------------
+
+# draftModel = os.path.join(base_path, "docs/models/bigg_example.xml")
+
+# gapfill_compl      = dnngior.Gapfill(draftModel, dbType = "BiGG", medium = None, objectiveName = 'bio1')
+
