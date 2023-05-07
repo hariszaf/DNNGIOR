@@ -4,3 +4,6 @@ dist/
 compounds.tsv
 reactions.tsv
 bigg_reactions.tsv
+
+.ipynb_checkpoints/
+
