@@ -38,6 +38,7 @@ from dnngior.NN_Predictor import NN
 
 try:
     from dnngior.NN_Trainer import noise_data, generate_training_set, custom_weighted_loss, train
+    print("Tensorflow available thus NN_Trainer is enabled.")
 except:
     print("WARNING: To enable the NN_Trainer script, you need to install tensorflow <https://www.tensorflow.org/install>\n"
           "The rest of dnngior features can be used without it.")
