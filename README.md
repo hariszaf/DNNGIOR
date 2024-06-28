@@ -19,6 +19,11 @@ pip install dnngior
 Optionally, you may need to also get [Tensorflow](https://www.tensorflow.org/install) (or through [conda](https://anaconda.org/conda-forge/tensorflow)) 
 in case you would like to use the `NN_Trainer`.
 
+In development:
+```bash
+python -m pip install --user dist/*.whl
+```
+
 ## How to use
 
 Gapfilling models is done using the `Gapfill` class:
